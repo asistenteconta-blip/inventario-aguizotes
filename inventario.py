@@ -13,7 +13,7 @@ scope = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-DOC_NAME = "Copia de INV AGUI ESCALANTE 31-10-25 CIERRE"
+SPREADSHEET_ID = "1RD7Y0kvyeyQzmNY0HELzp7MuWkJFjFsZOw66TQkJL3w"
 
 service_info = st.secrets["google_service_account"]
 
@@ -26,7 +26,7 @@ client = gspread.authorize(credentials)
 
 @st.cache_resource(show_spinner=False)
 def get_doc():
-    return client.open(DOC_NAME)
+    return client.open_by_key(SPREADSHEET_ID)
 
 doc = get_doc()
 
@@ -326,6 +326,7 @@ with col2:
     if st.button("🧹 Resetear inventario"):
         n = reset_inventario()
         st.success(f"✅ Reset: {n} filas limpiadas")
+
 
 
 
