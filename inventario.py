@@ -102,23 +102,32 @@ area = st.selectbox("Área:", areas)
 
 df_area = df[df["ÁREA"]==area]
 
-categorias = sorted(df_area["CATEGORIA"].unique())
-categoria = st.selectbox("CATEGORIA:", ["TODOS"] + categorias)
+# ✅ detectar columna categoria automáticamente
+col_categoria = next((c for c in df.columns if "CATEG" in c.upper()), None)
+
+categorias = sorted(df_area[col_categoria].unique())
+categoria = st.selectbox("Categoría:", ["TODOS"] + categorias)
 
 if categoria!="TODOS":
-    df_cat = df_area[df_area["CATEGORIA"]==categoria]
+    df_cat = df_area[df_area[col_categoria]==categoria]
 else:
     df_cat = df_area
 
-subfams = sorted(df_cat["SUB FAMILIA"].unique())
+# ✅ detectar subfamilia
+col_subfam = next((c for c in df.columns if "SUB" in c.upper()), None)
+
+subfams = sorted(df_cat[col_subfam].unique())
 subfam = st.selectbox("Sub familia:", ["TODOS"] + subfams)
 
 if subfam!="TODOS":
-    df_sf = df_cat[df_cat["SUB FAMILIA"]==subfam]
+    df_sf = df_cat[df_cat[col_subfam]==subfam]
 else:
     df_sf = df_cat
 
-productos = sorted(df_sf["PRODUCTO GENERICO"].unique())
+# ✅ detectar PRODUCTO GENERICO
+col_prod_bd = next((c for c in df.columns if "PRODUCTO GENER" in c.upper()), None)
+
+productos = sorted(df_sf[col_prod_bd].unique())
 prod = st.selectbox("Producto:", ["TODOS"] + productos)
 
 if prod=="TODOS":
@@ -230,4 +239,6 @@ with col2:
     if st.button("🧹 Reset inventario"):
         reset()
         st.success("✅ Reset realizado")
+
+
 
