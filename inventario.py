@@ -223,8 +223,8 @@ def buscar_col(nombre):
             return v
     return None
 
-col_cerrado = buscar_col(pos_cerrado)
-col_abierto = buscar_col(pos_abierto)
+col_cerrado = next((v for k,v in header_map.items() if "CERRADO" in k), None)
+col_abierto = next((v for k,v in header_map.items() if "ABIERTO" in k), None)
 col_valor = header_map.get("VALOR INVENTARIO")
 col_fecha = header_map.get("FECHA")
 
@@ -325,6 +325,7 @@ with col2:
     if st.button("🧹 Resetear inventario"):
         n = reset_inventario()
         st.success(f"✅ Reset: {n} filas limpiadas")
+
 
 
 
