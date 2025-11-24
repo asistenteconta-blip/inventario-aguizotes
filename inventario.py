@@ -243,23 +243,32 @@ def guardar_inventario():
         r = prod_row_map[prod]
 
         if col_cerrado:
-            updates.append({"range": f"{colnum_to_colletter(col_cerrado)}{r}", "values": [[cerrado]]})
+            updates.append({
+                "range": f"{ws_dest.title}!{colnum_to_colletter(col_cerrado)}{r}",
+                "values": [[cerrado]]
+            })
 
         if col_abierto:
-            updates.append({"range": f"{colnum_to_colletter(col_abierto)}{r}", "values": [[abierto]]})
+            updates.append({
+                "range": f"{ws_dest.title}!{colnum_to_colletter(col_abierto)}{r}",
+                "values": [[abierto]]
+            })
 
-        updates.append({"range": f"{colnum_to_colletter(col_fecha)}{r}", "values": [[fecha_str]]})
+        updates.append({
+            "range": f"{ws_dest.title}!{colnum_to_colletter(col_fecha)}{r}",
+            "values": [[fecha_str]]
+        })
 
         filas_actualizadas += 1
 
     if updates:
-    ws_dest.batch_update({
-        "value_input_option": "USER_ENTERED",
-        "data": updates
-    })
-
+        doc.batch_update({
+            "value_input_option": "USER_ENTERED",
+            "data": updates
+        })
 
     return filas_actualizadas
+
 
 # =========================================================
 #  RESET
@@ -303,5 +312,6 @@ with col2:
     if st.button("🧹 Resetear inventario"):
         n = reset_inventario()
         st.success(f"✅ Reset: {n} filas limpiadas")
+
 
 
