@@ -103,7 +103,7 @@ area = st.selectbox("Área:", areas)
 df_area = df[df["ÁREA"]==area]
 
 categorias = sorted(df_area["CATEGORIA"].unique())
-categoria = st.selectbox("Categoría:", ["TODOS"] + categorias)
+categoria = st.selectbox("CATEGORIA:", ["TODOS"] + categorias)
 
 if categoria!="TODOS":
     df_cat = df_area[df_area["CATEGORIA"]==categoria]
@@ -230,3 +230,4 @@ with col2:
     if st.button("🧹 Reset inventario"):
         reset()
         st.success("✅ Reset realizado")
+
