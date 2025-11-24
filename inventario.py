@@ -13,7 +13,7 @@ scope = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-DOC_NAME = "Copia de INV AGUI ESCALANTE  31-10-25 CIERRE"
+DOC_NAME = "Copia de INV AGUI ESCALANTE 31-10-25 CIERRE"
 
 service_info = st.secrets["google_service_account"]
 
@@ -326,6 +326,7 @@ with col2:
     if st.button("🧹 Resetear inventario"):
         n = reset_inventario()
         st.success(f"✅ Reset: {n} filas limpiadas")
+
 
 
 
