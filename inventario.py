@@ -253,7 +253,11 @@ def guardar_inventario():
         filas_actualizadas += 1
 
     if updates:
-        ws_dest.batch_update(updates)
+    ws_dest.batch_update({
+        "value_input_option": "USER_ENTERED",
+        "data": updates
+    })
+
 
     return filas_actualizadas
 
@@ -276,7 +280,11 @@ def reset_inventario():
         updates.append({"range": f"{colnum_to_colletter(col_fecha)}{r}", "values": [[""]]})
 
     if updates:
-        ws_dest.batch_update(updates)
+    ws_dest.batch_update({
+        "value_input_option": "USER_ENTERED",
+        "data": updates
+    })
+
 
     return total_rows - 3
 
@@ -295,4 +303,5 @@ with col2:
     if st.button("🧹 Resetear inventario"):
         n = reset_inventario()
         st.success(f"✅ Reset: {n} filas limpiadas")
+
 
