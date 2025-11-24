@@ -91,14 +91,27 @@ def get_dest_sheet(area: str):
     st.write(list(hojas.keys()))
     st.stop()
 
+import unicodedata
+
+def normalizar(texto):
+    if not texto:
+        return ""
+    texto = texto.strip().upper()
+    texto = unicodedata.normalize("NFKD", texto).encode("ASCII","ignore").decode()
+    texto = texto.replace("  ", " ")
+    return texto
+
 def get_header_map(ws):
     header_row = ws.row_values(3)
     header_map = {}
+
     for idx, name in enumerate(header_row, start=1):
-        normalized = name.strip().upper()
-        if normalized:
-            header_map[normalized] = idx
+        norm = normalizar(name)
+        if norm:
+            header_map[norm] = idx
+
     return header_map
+
 
 def get_product_row_map(ws, col_idx_producto: int):
     productos_col = ws.col_values(col_idx_producto)
@@ -204,10 +217,10 @@ pos_abierto = [
     "CANTIDAD ABIERTO A",
 ]
 
-def buscar_col(lista):
-    for name in lista:
-        if name in header_map:
-            return header_map[name]
+def buscar_col(nombre):
+    for k,v in header_map.items():
+        if nombre in k.replace("Á","A").upper():
+            return v
     return None
 
 col_cerrado = buscar_col(pos_cerrado)
@@ -312,6 +325,7 @@ with col2:
     if st.button("🧹 Resetear inventario"):
         n = reset_inventario()
         st.success(f"✅ Reset: {n} filas limpiadas")
+
 
 
 
