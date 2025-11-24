@@ -31,6 +31,7 @@ def get_doc():
 
 doc = get_doc()
 
+BD_TAB = "BD_productos"
 INV_CO = "INVENTARIO_COCINA"
 INV_SU = "INVENTARIO_SUMINISTROS"
 INV_BA = "INVENTARIO_BARRA"
@@ -72,6 +73,22 @@ def col_letter(n):
     return s
 
 # ================================
+# CARGAR BD_productos
+# ================================
+
+@st.cache_data(show_spinner=False)
+def get_bd():
+    ws = doc.worksheet(BD_TAB)
+    raw = ws.get_all_values(value_render_option="UNFORMATTED_VALUE")
+
+    headers = [h.strip() for h in raw[0]]
+    df = pd.DataFrame(raw[1:], columns=headers)
+    df.columns = df.columns.str.upper().str.strip()
+    return df
+
+df = get_bd()
+
+# ================================
 # UI
 # ================================
 
@@ -80,28 +97,31 @@ st.title("📦 Sistema de Inventario Diario – Restaurante")
 fecha_inv = st.date_input("Fecha inventario:", value=date.today())
 fecha_str = fecha_inv.strftime("%d-%m-%Y")
 
-area = st.selectbox("Área:", ["COCINA","BARRA","CONSUMIBLE"])
+areas = sorted([a for a in df["ÁREA"].unique() if a.upper()!="GASTO"])
+area = st.selectbox("Área:", areas)
 
-# obtener hoja y columnas
-ws_dest = get_dest_sheet(area)
-header_map = get_header_map(ws_dest)
+df_area = df[df["ÁREA"]==area]
 
-# detectar columnas
-col_prod    = next((v for k,v in header_map.items() if "PRODUCTO" in k),None)
-col_cerrado = next((v for k,v in header_map.items() if "CERRADO" in k),None)
-col_abierto = next((v for k,v in header_map.items() if "ABIERTO" in k),None)
-col_fecha   = next((v for k,v in header_map.items() if "FECHA" in k),None)
+categorias = sorted(df_area["CATEGORIA"].unique())
+categoria = st.selectbox("Categoría:", ["TODOS"] + categorias)
 
-if not col_prod:
-    st.error("❌ No se encontró columna PRODUCTO")
-    st.stop()
+if categoria!="TODOS":
+    df_cat = df_area[df_area["CATEGORIA"]==categoria]
+else:
+    df_cat = df_area
 
-productos_col = ws_dest.col_values(col_prod)[3:]
-productos = [p for p in productos_col if p.strip()!=""]
+subfams = sorted(df_cat["SUB FAMILIA"].unique())
+subfam = st.selectbox("Sub familia:", ["TODOS"] + subfams)
 
+if subfam!="TODOS":
+    df_sf = df_cat[df_cat["SUB FAMILIA"]==subfam]
+else:
+    df_sf = df_cat
+
+productos = sorted(df_sf["PRODUCTO GENERICO"].unique())
 prod = st.selectbox("Producto:", ["TODOS"] + productos)
 
-if prod == "TODOS":
+if prod=="TODOS":
     productos_sel = productos
 else:
     productos_sel = [prod]
@@ -119,16 +139,29 @@ tabla_editada = st.data_editor(
 )
 
 # ================================
+# DETECCIÓN COLUMNAS HOJA DESTINO
+# ================================
+
+ws_dest = get_dest_sheet(area)
+header_map = get_header_map(ws_dest)
+
+col_prod    = next((v for k,v in header_map.items() if "PRODUCTO" in k),None)
+col_cerrado = next((v for k,v in header_map.items() if "CERRADO" in k),None)
+col_abierto = next((v for k,v in header_map.items() if "ABIERTO" in k),None)
+col_fecha   = next((v for k,v in header_map.items() if "FECHA" in k),None)
+
+# ================================
 # GUARDAR
 # ================================
 
 def guardar():
     updates = []
+
+    productos_sheet = ws_dest.col_values(col_prod)
+
     for _, row in tabla_editada.iterrows():
         nombre = row["PRODUCTO"].strip().upper()
 
-        # buscar fila
-        productos_sheet = ws_dest.col_values(col_prod)
         for idx in range(3,len(productos_sheet)):
             if str(productos_sheet[idx]).strip().upper()==nombre:
                 fila = idx+1
@@ -154,20 +187,20 @@ def guardar():
 
     if updates:
         doc.batch_update({
-            "value_input_option": "USER_ENTERED",
-            "data": updates
+            "value_input_option":"USER_ENTERED",
+            "data":updates
         })
-        return len(updates)
-    return 0
+        return True
+    return False
 
 # ================================
 # RESET
 # ================================
 
 def reset():
+    products_sheet = ws_dest.col_values(col_prod)
     updates=[]
-    productos_sheet = ws_dest.col_values(col_prod)
-    for idx in range(3,len(productos_sheet)):
+    for idx in range(3,len(products_sheet)):
         fila = idx+1
         if col_cerrado:
             updates.append({"range":f"{ws_dest.title}!{col_letter(col_cerrado)}{fila}","values":[[0]]})
@@ -190,8 +223,8 @@ col1,col2 = st.columns(2)
 
 with col1:
     if st.button("💾 Guardar inventario"):
-        guardar()
-        st.success("✅ Guardado")
+        if guardar():
+            st.success("✅ Guardado")
 
 with col2:
     if st.button("🧹 Reset inventario"):
