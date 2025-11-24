@@ -14,7 +14,7 @@ scope = [
 ]
 
 # NOMBRE DEL DOCUMENTO
-DOC_NAME = "Copia de MACHOTE INV BATANGA DDMMAAAA  ACT25"
+DOC_NAME = "Copia de INV AGUI ESCALANTE  31-10-25 CIERRE"
 
 # --- CREDENCIALES DESDE secrets.toml ---
 service_info = st.secrets["google_service_account"]
@@ -446,4 +446,5 @@ if st.session_state.get("confirm_reset", False):
         if st.button("❌ Cancelar"):
             st.info("Operación cancelada, no se modificó nada.")
             st.session_state["confirm_reset"] = False
+
 
