@@ -185,6 +185,7 @@ tabla_editada = st.data_editor(
 
 ws_dest = get_dest_sheet(area)
 header_map = get_header_map(ws_dest)
+st.write(header_map)
 
 # PRODUCTO
 posibles_productos = [
@@ -325,6 +326,7 @@ with col2:
     if st.button("🧹 Resetear inventario"):
         n = reset_inventario()
         st.success(f"✅ Reset: {n} filas limpiadas")
+
 
 
 
