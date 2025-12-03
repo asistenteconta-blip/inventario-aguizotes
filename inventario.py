@@ -272,10 +272,37 @@ if not entrada.empty:
     st.session_state["preview_por_area"][area] = prev
 
 st.subheader("Vista previa")
-prev = st.session_state["preview_por_area"][area]
+prev = st.session_state["preview_por_area"][area].copy()
 
 if not prev.empty:
+
+    # ======= Agregar precios desde Google Sheets =======
+    df_prec = df_area.copy()
+
+    # Normalizar columnas por seguridad
+    df_prec.columns = [normalize(c) for c in df_prec.columns]
+
+    # Necesitamos: PRODUCTO, PRECIO NETO, COSTO X UNIDAD
+    if "PRECIO NETO" in df_prec.columns and "COSTO X UNIDAD" in df_prec.columns:
+
+        df_prec = df_prec[[normalize(col_producto), "PRECIO NETO", "COSTO X UNIDAD"]]
+        df_prec = df_prec.rename(columns={normalize(col_producto): "PRODUCTO"})
+
+        # Merge con la preview
+        prev = prev.merge(df_prec, on="PRODUCTO", how="left")
+
+        # ======= Calcular valor inventario (solo vista previa) =======
+        prev["VALOR INVENTARIO (PREVIO)"] = (
+            prev["PRECIO NETO"].fillna(0) * prev["CERRADO"].fillna(0)
+            + prev["COSTO X UNIDAD"].fillna(0) * prev["ABIERTO(PESO)"].fillna(0)
+        ).round(2)
+
+    # Mostrar vista previa con valor inventario incluido
     st.dataframe(prev, use_container_width=True)
+
+    # Guardar en sesión para el botón GUARDAR
+    st.session_state["preview_por_area"][area] = prev
+
 else:
     st.info("Sin registros aún.")
 
@@ -423,3 +450,4 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
