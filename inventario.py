@@ -14,7 +14,7 @@ scope = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-DOC_NAME = "INVENTARIO BATANGA CIERRE FORM"
+DOC_NAME = "AGUI ESCALANTE  DDMMAAAA - INVENTARIO MACHOTE 25"
 
 service_info = st.secrets["google_service_account"]
 credentials = Credentials.from_service_account_info(service_info, scopes=scope)
@@ -354,3 +354,4 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[st.session_state["comentario"]]])
     st.success("Comentario guardado ✔")
+
