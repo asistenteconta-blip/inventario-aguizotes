@@ -40,14 +40,6 @@ DATA_START = 5
 if "confirm_reset" not in st.session_state:
     st.session_state["confirm_reset"] = False
 
-# comentarios por area
-if "comentarios_por_area" not in st.session_state:
-    st.session_state["comentarios_por_area"] = {
-        "COCINA": "",
-        "SUMINISTROS": "",
-        "BARRA": ""
-    }
-
 # =========================================================
 # NORMALIZACIÓN
 # =========================================================
@@ -59,43 +51,32 @@ def normalize(s):
     return s.strip().upper()
 
 # =========================================================
-# NORMALIZAR COLUMNAS -> nombres canónicos internos
+# NORMALIZAR COLUMNAS
 # =========================================================
 
 def normalizar_columnas(df):
-    """
-    Convierte columnas comunes a nombres canónicos usados por la app:
-    PRODUCTO, UNIDAD, MEDIDA, CERRADO, ABIERTO(PESO), BOTELLAS_ABIERTAS,
-    PRECIO_NETO, COSTO_X_UNIDAD, VALOR_INVENTARIO (este último puede llenarse después).
-    """
     if df is None:
         return df
     df = df.copy()
     mapping = {}
+
     for col in df.columns:
         key = normalize(col)
-        # producto
+
         if key.startswith("PRODUCTO"):
             mapping[col] = "PRODUCTO"
         elif key == "UNIDAD RECETA":
             mapping[col] = "UNIDAD"
         elif key in ("CANTIDAD DE UNIDAD DE MEDIDA", "CANTIDAD DE UNIDAD"):
             mapping[col] = "MEDIDA"
-        elif key in ("CANTIDAD CERRADO", "CERRADO"):
+        elif key in ("CERRADO", "CANTIDAD CERRADO"):
             mapping[col] = "CERRADO"
         elif "ABIERTO" in key:
             mapping[col] = "ABIERTO(PESO)"
         elif "BOTELLAS" in key:
             mapping[col] = "BOTELLAS_ABIERTAS"
-        elif "PRECIO NETO" in key or key == "PRECIO":
-            mapping[col] = "PRECIO_NETO"
-        elif "COSTO X UNIDAD" in key or "COSTO POR UNIDAD" in key or "COSTO X" in key:
-            mapping[col] = "COSTO_X_UNIDAD"
-        elif "VALOR INVENTARIO" in key or "VALOR" == key:
-            mapping[col] = "VALOR_INVENTARIO"
-    if mapping:
-        df = df.rename(columns=mapping)
-    return df
+
+    return df.rename(columns=mapping)
 
 # =========================================================
 # FUNCIONES GLOBALES
@@ -119,9 +100,14 @@ def safe_value(v):
 def get_sheet(area):
     hojas = {normalize(ws.title): ws for ws in doc.worksheets()}
     a = normalize(area)
-    if a == "COCINA": return hojas[normalize(INV_CO)]
-    if a in ["SUMINISTROS", "CONSUMIBLE"]: return hojas[normalize(INV_SU)]
-    if a == "BARRA": return hojas[normalize(INV_BA)]
+
+    if a == "COCINA":
+        return hojas[normalize(INV_CO)]
+    if a in ["SUMINISTROS", "CONSUMIBLE"]:
+        return hojas[normalize(INV_SU)]
+    if a == "BARRA":
+        return hojas[normalize(INV_BA)]
+
     st.error("Área inválida")
     st.stop()
 
@@ -129,19 +115,13 @@ def get_sheet(area):
 def load_area_products(area):
     ws = get_sheet(area)
     raw = ws.get_all_values(value_render_option="UNFORMATTED_VALUE")
-    # protect in case sheet empty-ish
-    if len(raw) < HEADER_ROW:
-        st.error("Hoja incompleta o encabezados fuera de rango")
-        st.stop()
 
     headers = raw[HEADER_ROW - 1]
-    data = raw[DATA_START - 1:] if len(raw) >= DATA_START else []
+    data = raw[DATA_START - 1:]
 
     df = pd.DataFrame(data, columns=headers)
-    # normalize column names (ASCII uppercase)
     df.columns = [normalize(c) for c in df.columns]
 
-    # find producto column (PRODUCTO GENERICO or PRODUCTO GENÉRICO or PRODUCTO)
     col_producto = None
     for c in df.columns:
         if normalize(c).startswith("PRODUCTO"):
@@ -154,6 +134,7 @@ def load_area_products(area):
 
     df = df[df[col_producto].notna()]
     df = df[df[col_producto].astype(str).str.strip() != ""]
+
     return df
 
 def get_headers(ws):
@@ -189,6 +170,7 @@ area = st.selectbox("Área:", areas)
 df_area = load_area_products(area)
 
 # FILTROS
+
 if "CATEGORIA" in df_area.columns:
     categorias = ["TODOS"] + sorted(df_area["CATEGORIA"].dropna().unique())
     categoria = st.selectbox("Categoría:", categorias)
@@ -201,8 +183,12 @@ if "SUB FAMILIA" in df_fil.columns:
     subfam = st.selectbox("Subfamilia:", subfams)
     df_fil = df_fil if subfam == "TODOS" else df_fil[df_fil["SUB FAMILIA"] == subfam]
 
-# detect product column in df_fil (columns are normalized after load)
-col_producto = next((c for c in df_fil.columns if normalize(c).startswith("PRODUCTO")), None)
+col_producto = None
+for c in df_fil.columns:
+    if normalize(c).startswith("PRODUCTO"):
+        col_producto = c
+        break
+
 if col_producto is None:
     st.error("No se encontró columna de producto.")
     st.stop()
@@ -217,32 +203,26 @@ if df_sel.empty:
     st.stop()
 
 # =========================================================
-# Construir df_tabla con columnas canónicas internas
+# TABLA EDITABLE
 # =========================================================
 
-# normalizar columnas de df_sel para nombres canónicos
-df_sel_canon = normalizar_columnas(df_sel)
-
-n = len(df_sel_canon)
 tabla = {
-    "PRODUCTO": df_sel_canon.get("PRODUCTO", df_sel_canon[col_producto]).tolist() if "PRODUCTO" in df_sel_canon.columns else df_sel[col_producto].tolist(),
-    "UNIDAD": df_sel_canon.get("UNIDAD", [""] * n).tolist(),
-    "MEDIDA": df_sel_canon.get("MEDIDA", [""] * n).tolist(),
-    "CERRADO": [0] * n,
-    "ABIERTO(PESO)": [0] * n,
-    "BOTELLAS_ABIERTAS": [0] * n if area == "BARRA" else [""] * n,
-    "PRECIO_NETO": df_sel_canon.get("PRECIO_NETO", [0] * n).tolist(),
-    "COSTO_X_UNIDAD": df_sel_canon.get("COSTO_X_UNIDAD", [0] * n).tolist(),
-    "VALOR_INVENTARIO": [0] * n
+    "PRODUCTO": df_sel[col_producto].tolist(),
+    "UNIDAD": df_sel.get("UNIDAD RECETA", [""] * len(df_sel)).tolist(),
+    "MEDIDA": df_sel.get("CANTIDAD DE UNIDAD DE MEDIDA", [""] * len(df_sel)).tolist(),
+    "CERRADO": [0] * len(df_sel),
+    "ABIERTO(PESO)": [0] * len(df_sel),
 }
+
+tabla["BOTELLAS_ABIERTAS"] = [0] * len(df_sel) if area == "BARRA" else [""] * len(df_sel)
+
+# =========================================================
+# TABLA EDITABLE (DECIMALES)
+# =========================================================
 
 df_tabla = pd.DataFrame(tabla)
 
-# -------------------------
-# LIMPIEZA Y NORMALIZACIÓN NUMÉRICA
-# -------------------------
-num_cols = ["CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS", "PRECIO_NETO", "COSTO_X_UNIDAD"]
-for c in num_cols:
+for c in ["CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]:
     if c in df_tabla.columns:
         df_tabla[c] = (
             df_tabla[c]
@@ -252,37 +232,19 @@ for c in num_cols:
         )
         df_tabla[c] = pd.to_numeric(df_tabla[c], errors="coerce").fillna(0)
 
-# Forzar floats (keeps 0 instead of '0.0' when displayed as int-like depends on Streamlit)
-for c in num_cols:
+for c in ["CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]:
     if c in df_tabla.columns:
         df_tabla[c] = df_tabla[c].astype(float)
 
-# =========================================================
-# DATA EDITOR (permitir decimales, formatos)
-# =========================================================
 df_edit = st.data_editor(
     df_tabla,
-    disabled=["PRODUCTO", "UNIDAD", "MEDIDA", "PRECIO_NETO", "COSTO_X_UNIDAD", "VALOR_INVENTARIO"],
+    disabled=["PRODUCTO", "UNIDAD", "MEDIDA"],
     use_container_width=True,
     column_config={
         "CERRADO": st.column_config.NumberColumn("CERRADO", format="%.10g"),
         "ABIERTO(PESO)": st.column_config.NumberColumn("ABIERTO (PESO)", format="%.10g"),
-        "BOTELLAS_ABIERTAS": st.column_config.NumberColumn("BOTELLAS ABIERTAS", format="%.0f"),
+        "BOTELLAS_ABIERTAS": st.column_config.NumberColumn("BOTELLAS ABIERTAS", format="%.10g"),
     }
-)
-
-# =========================================================
-# CALCULAR VALOR INVENTARIO EN df_edit
-# =========================================================
-# asegurar columnas existen
-for col in ["PRECIO_NETO", "COSTO_X_UNIDAD", "CERRADO", "ABIERTO(PESO)"]:
-    if col not in df_edit.columns:
-        df_edit[col] = 0
-
-df_edit["VALOR_INVENTARIO"] = (
-    df_edit["PRECIO_NETO"].astype(float) * df_edit["CERRADO"].astype(float)
-) + (
-    df_edit["COSTO_X_UNIDAD"].astype(float) * df_edit["ABIERTO(PESO)"].astype(float)
 )
 
 # =========================================================
@@ -291,45 +253,22 @@ df_edit["VALOR_INVENTARIO"] = (
 
 if "preview_por_area" not in st.session_state:
     st.session_state["preview_por_area"] = {
-        "COCINA": pd.DataFrame(),
-        "SUMINISTROS": pd.DataFrame(),
-        "BARRA": pd.DataFrame(),
+        "COCINA": pd.DataFrame(columns=["PRODUCTO", "CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]),
+        "SUMINISTROS": pd.DataFrame(columns=["PRODUCTO", "CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]),
+        "BARRA": pd.DataFrame(columns=["PRODUCTO", "CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]),
     }
 
-mask = (df_edit["CERRADO"] != 0) | (df_edit["ABIERTO(PESO)"] != 0) | (df_edit["VALOR_INVENTARIO"] != 0)
-if area == "BARRA":
-    mask |= (df_edit["BOTELLAS_ABIERTAS"] != 0)
+mask = (df_edit["CERRADO"] != 0) | (df_edit["ABIERTO(PESO)"] != 0)
 
-entrada = df_edit[mask].copy()
+if area == "BARRA":
+    mask |= df_edit["BOTELLAS_ABIERTAS"] != 0
+
+entrada = normalizar_columnas(df_edit[mask].copy())
 
 if not entrada.empty:
-    prev = st.session_state["preview_por_area"][area]
-    # normalizar prev columns to canonical if exists
-    if prev is None or prev.empty:
-        prev = pd.DataFrame(columns=entrada.columns)
-    else:
-        prev = normalizar_columnas(prev)
-
-    entrada = normalizar_columnas(entrada)
-
-    # asegurar exista PRODUCTO en ambos
-    if "PRODUCTO" in prev.columns and "PRODUCTO" in entrada.columns:
-        prev = prev[~prev["PRODUCTO"].isin(entrada["PRODUCTO"])]
-    # concatenar
-    prev = pd.concat([prev, entrada], ignore_index=True, sort=False)
-
-    # recalcular VALOR_INVENTARIO por si alguno cambió
-    if "PRECIO_NETO" in prev.columns and "COSTO_X_UNIDAD" in prev.columns:
-        prev["PRECIO_NETO"] = pd.to_numeric(prev["PRECIO_NETO"], errors="coerce").fillna(0).astype(float)
-        prev["COSTO_X_UNIDAD"] = pd.to_numeric(prev["COSTO_X_UNIDAD"], errors="coerce").fillna(0).astype(float)
-    prev["CERRADO"] = pd.to_numeric(prev.get("CERRADO", 0), errors="coerce").fillna(0).astype(float)
-    prev["ABIERTO(PESO)"] = pd.to_numeric(prev.get("ABIERTO(PESO)", 0), errors="coerce").fillna(0).astype(float)
-    prev["VALOR_INVENTARIO"] = (
-        prev.get("PRECIO_NETO", 0).astype(float) * prev["CERRADO"].astype(float)
-    ) + (
-        prev.get("COSTO_X_UNIDAD", 0).astype(float) * prev["ABIERTO(PESO)"].astype(float)
-    )
-
+    prev = normalizar_columnas(st.session_state["preview_por_area"][area])
+    prev = prev[~prev["PRODUCTO"].isin(entrada["PRODUCTO"])]
+    prev = pd.concat([prev, entrada], ignore_index=True)
     st.session_state["preview_por_area"][area] = prev
 
 st.subheader("Vista previa")
@@ -346,68 +285,59 @@ else:
 
 def guardar():
     prev = st.session_state["preview_por_area"][area]
-    if prev is None or prev.empty:
+
+    if prev.empty:
         st.warning("No hay datos para guardar.")
         return
 
     ws = get_sheet(area)
     headers = get_headers(ws)
 
-    # detectar columna producto original (índice)
-    col_prod_idx = None
-    for h, idx in headers.items():
-        if normalize(h).startswith("PRODUCTO"):
-            col_prod_idx = idx
+    col_prod = None
+    for k in headers.keys():
+        if normalize(k).startswith("PRODUCTO"):
+            col_prod = headers[k]
             break
 
-    if col_prod_idx is None:
-        st.error("No se encontró columna PRODUCTO en la hoja para escribir.")
-        return
-
-    rows = get_rows(ws, col_prod_idx)
+    rows = get_rows(ws, col_prod)
     updates = []
 
     for _, r in prev.iterrows():
-        prod_val = r.get("PRODUCTO", None)
-        if prod_val is None:
-            continue
-        prod = normalize(str(prod_val))
+        prod = normalize(r["PRODUCTO"])
         row = rows.get(prod)
         if not row:
             continue
 
-        # Mapeo de campos a columna escrita
-        mapping = {
+        campos = {
             "CERRADO": "CANTIDAD CERRADO",
             "ABIERTO(PESO)": "CANTIDAD ABIERTO (PESO)",
             "BOTELLAS_ABIERTAS": "CANTIDAD BOTELLAS ABIERTAS",
         }
 
-        for campo, colname in mapping.items():
+        for campo, nombre_real in campos.items():
             if campo == "BOTELLAS_ABIERTAS" and area != "BARRA":
                 continue
-            # buscar índice real en headers (comparando normalize)
-            target_idx = None
+
+            col = None
             for h, idx in headers.items():
-                if normalize(h) == normalize(colname):
-                    target_idx = idx
+                if normalize(h) == normalize(nombre_real):
+                    col = idx
                     break
-            if target_idx:
+
+            if col:
                 updates.append({
-                    "range": f"{colletter(target_idx)}{row}",
-                    "values": [[safe_value(r.get(campo, 0))]]
+                    "range": f"{colletter(col)}{row}",
+                    "values": [[safe_value(r.get(campo, 0))]],
                 })
 
-        # Fecha
-        for h, idx in headers.items():
+        for h, ci in headers.items():
             if normalize(h) == "FECHA":
                 updates.append({
-                    "range": f"{colletter(idx)}{row}",
-                    "values": [[fecha_str]]
+                    "range": f"{colletter(ci)}{row}",
+                    "values": [[fecha_str]],
                 })
 
-    if updates:
-        ws.batch_update(updates)
+    ws.batch_update(updates)
     st.success("Inventario guardado ✔")
 
 # =========================================================
@@ -418,30 +348,34 @@ def resetear():
     ws = get_sheet(area)
     headers = get_headers(ws)
 
-    # detectar columna producto original
-    col_prod_idx = None
-    for h, idx in headers.items():
-        if normalize(h).startswith("PRODUCTO"):
-            col_prod_idx = idx
+    col_prod = None
+    for k, v in headers.items():
+        if normalize(k).startswith("PRODUCTO"):
+            col_prod = v
             break
 
-    rows = get_rows(ws, col_prod_idx)
+    rows = get_rows(ws, col_prod)
     updates = []
 
     for row in rows.values():
-        for colname in ["CANTIDAD CERRADO", "CANTIDAD ABIERTO (PESO)", "CANTIDAD BOTELLAS ABIERTAS"]:
-            for h, idx in headers.items():
-                if normalize(h) == normalize(colname):
-                    updates.append({"range": f"{colletter(idx)}{row}", "values": [[0]]})
-        for h, idx in headers.items():
+        for campo in ["CANTIDAD CERRADO", "CANTIDAD ABIERTO (PESO)", "CANTIDAD BOTELLAS ABIERTAS"]:
+            target = normalize(campo)
+            for h, ci in headers.items():
+                if normalize(h) == target:
+                    updates.append({"range": f"{colletter(ci)}{row}", "values": [[0]]})
+
+        for h, ci in headers.items():
             if normalize(h) == "FECHA":
-                updates.append({"range": f"{colletter(idx)}{row}", "values": [[""]]})
+                updates.append({"range": f"{colletter(ci)}{row}", "values": [[""]]})
 
     updates.append({"range": "C3", "values": [[""]]})
-    if updates:
-        ws.batch_update(updates)
 
-    st.session_state["preview_por_area"][area] = pd.DataFrame()
+    ws.batch_update(updates)
+
+    st.session_state["preview_por_area"][area] = pd.DataFrame(
+        columns=["PRODUCTO", "CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]
+    )
+
     st.success("Área reseteada ✔")
 
 # =========================================================
@@ -466,8 +400,15 @@ if st.session_state.get("confirm_reset", False):
         st.session_state["confirm_reset"] = False
 
 # =========================================================
-# COMENTARIOS POR ÁREA
+# COMENTARIO POR ÁREA
 # =========================================================
+
+if "comentarios_por_area" not in st.session_state:
+    st.session_state["comentarios_por_area"] = {
+        "COCINA": "",
+        "SUMINISTROS": "",
+        "BARRA": "",
+    }
 
 st.subheader(f"Comentario — {area}")
 
@@ -480,6 +421,5 @@ comentario_actual = st.text_area(
 if st.button("💬 Guardar comentario"):
     st.session_state["comentarios_por_area"][area] = comentario_actual
     ws = get_sheet(area)
-    # escribe en C3 de la hoja correspondiente
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
