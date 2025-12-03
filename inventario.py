@@ -242,7 +242,7 @@ df_edit = st.data_editor(
     column_config={
         "CERRADO": st.column_config.NumberColumn(
             "CERRADO",
-            format="%.4g",   # 🔥 muestra 0 en vez de 0.0, pero acepta decimales
+            format="%.4g",
             step=0.01
         ),
         "ABIERTO(PESO)": st.column_config.NumberColumn(
@@ -252,10 +252,12 @@ df_edit = st.data_editor(
         ),
         "BOTELLAS_ABIERTAS": st.column_config.NumberColumn(
             "BOTELLAS ABIERTAS",
-            format="%.0f",   # sin decimales
+            format="%.0f",
             step=1
         ) if area == "BARRA" else None,
     }
+)
+
 
 
 # =========================================================
@@ -501,6 +503,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
