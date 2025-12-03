@@ -51,6 +51,43 @@ def normalize(s):
     return s.strip().upper()
 
 # =========================================================
+# Helpers para normalizar DataFrames (columnas)
+# =========================================================
+
+def normalizar_columnas(df):
+    """
+    Renombra columnas comunes a nombres estándar que usa la app:
+    PRODUCTO, UNIDAD, MEDIDA, CERRADO, ABIERTO(PESO), BOTELLAS_ABIERTAS
+    Recibe y devuelve copia para no mutar el original.
+    """
+    if df is None:
+        return df
+    df = df.copy()
+    mapping = {}
+    for col in df.columns:
+        key = normalize(col)
+        # producto (acepta PRODUCTO GENERICO / PRODUCTO GENÉRICO / PRODUCTO)
+        if key.startswith("PRODUCTO"):
+            mapping[col] = "PRODUCTO"
+        elif key == "UNIDAD RECETA":
+            mapping[col] = "UNIDAD"
+        elif key in ("CANTIDAD DE UNIDAD DE MEDIDA", "CANTIDAD DE UNIDAD"):
+            mapping[col] = "MEDIDA"
+        elif key in ("CANTIDAD CERRADO", "CANTIDAD_CERRADO", "CERRADO"):
+            mapping[col] = "CERRADO"
+        elif key in ("CANTIDAD ABIERTO (PESO)", "CANTIDAD ABIERTO (PESO)".replace(" ", ""), "CANTIDAD ABIERTO (PESO)".upper(), "ABIERTO (PESO)", "ABIERTO(PESO)"):
+            # normalize many variants to ABIERTO(PESO)
+            mapping[col] = "ABIERTO(PESO)"
+        elif "BOTELLAS" in key:
+            # detecta BOTELLAS ABIERTAS / CANTIDAD BOTELLAS ABIERTAS
+            mapping[col] = "BOTELLAS_ABIERTAS"
+    if mapping:
+        df = df.rename(columns=mapping)
+    # Asegurar que las columnas esperadas existen (por seguridad)
+    # Esto evita KeyError más adelante; si faltan, se dejan ausentes.
+    return df
+
+# =========================================================
 # FUNCIONES GLOBALES
 # =========================================================
 
@@ -90,13 +127,14 @@ def load_area_products(area):
 
     df = pd.DataFrame(data, columns=headers)
 
-    # Normalizar columnas
+    # Normalizar columnas (texto ASCII en MAYÚSCULAS)
     df.columns = [normalize(c) for c in df.columns]
 
     # Nombre real puede ser GENERICO (sin tilde) o GENÉRICO (con tilde)
+    # Buscar columna producto (normalize ya aplicada)
     col_producto = None
     for c in df.columns:
-        if normalize(c) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO"]:
+        if normalize(c) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO", "PRODUCTO"]:
             col_producto = c
             break
 
@@ -155,11 +193,16 @@ if "SUB FAMILIA" in df_fil.columns:
     subfam = st.selectbox("Subfamilia:", subfams)
     df_fil = df_fil if subfam == "TODOS" else df_fil[df_fil["SUB FAMILIA"] == subfam]
 
-# Detectar columna PRODUCTO automáticamente
+# Detectar columna PRODUCTO automáticamente (en df_fil ya están las columnas normalizadas)
 col_producto = None
 for c in df_fil.columns:
-    if normalize(c) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO"]:
+    if normalize(c) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO", "PRODUCTO"]:
         col_producto = c
+        break
+
+if col_producto is None:
+    st.error("No se encontró columna de producto en la tabla filtrada.")
+    st.stop()
 
 prods = ["TODOS"] + sorted(df_fil[col_producto].dropna().unique())
 prod_sel = st.selectbox("Producto:", prods)
@@ -174,10 +217,11 @@ if df_sel.empty:
 # TABLA
 # =========================================================
 
+# A df_sel las columnas están normalizadas en MAYÚSCULAS ASCII; col_producto apunta a la columna de producto
 tabla = {
     "PRODUCTO": df_sel[col_producto].tolist(),
-    "UNIDAD": df_sel["UNIDAD RECETA"].tolist(),
-    "MEDIDA": df_sel["CANTIDAD DE UNIDAD DE MEDIDA"].tolist(),
+    "UNIDAD": df_sel.get("UNIDAD RECETA", [""] * len(df_sel)).tolist(),
+    "MEDIDA": df_sel.get("CANTIDAD DE UNIDAD DE MEDIDA", [""] * len(df_sel)).tolist(),
     "CERRADO": [0] * len(df_sel),
     "ABIERTO(PESO)": [0] * len(df_sel),
 }
@@ -227,12 +271,17 @@ entrada = df_edit[mask].copy()
 
 if not entrada.empty:
     prev = st.session_state["preview_por_area"][area]
-   # Normalizar columnas para asegurar "PRODUCTO" exista
+
+    # Normalizar columnas para asegurar "PRODUCTO" exista y estandarizar nombres
     prev = normalizar_columnas(prev)
+    entrada = normalizar_columnas(entrada)
 
-# Quitar productos repetidos entre prev y entrada
-    prev = prev[~prev["PRODUCTO"].isin(entrada["PRODUCTO"])]
-
+    # Quitar productos repetidos entre prev y entrada (si prev tiene PRODUCTO)
+    if "PRODUCTO" in prev.columns:
+        # Asegurar que entrada también tiene PRODUCTO (si no, no filtrar)
+        if "PRODUCTO" in entrada.columns:
+            prev = prev[~prev["PRODUCTO"].isin(entrada["PRODUCTO"])]
+    # Concatenar y guardar en session_state
     prev = pd.concat([prev, entrada], ignore_index=True)
     st.session_state["preview_por_area"][area] = prev
 
@@ -260,7 +309,7 @@ def guardar():
     # detectar columna producto original
     col_prod = None
     for k in headers.keys():
-        if normalize(k) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO"]:
+        if normalize(k) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO", "PRODUCTO"]:
             col_prod = headers[k]
             break
 
@@ -269,7 +318,22 @@ def guardar():
     updates = []
 
     for _, r in prev.iterrows():
-        prod = normalize(r["PRODUCTO"])
+        # si prev fue creado por normalizar_columnas, tendrá PRODUCTO; si no, intentar nombres alternativos
+        prod_name = r.get("PRODUCTO", None)
+        if prod_name is None:
+            # intentar con variantes
+            possible = None
+            for alt in ["PRODUCTO GENERICO", "PRODUCTO GENÉRICO", "PRODUCTO"]:
+                if alt in r.index:
+                    possible = r[alt]
+                    break
+            prod = normalize(possible) if possible is not None else None
+        else:
+            prod = normalize(prod_name)
+
+        if prod is None:
+            continue
+
         row = rows.get(prod)
         if not row:
             continue
@@ -281,6 +345,10 @@ def guardar():
         }
 
         for campo, nombre_real in m.items():
+            # No intentar escribir BOTELLAS si no es barra
+            if campo == "BOTELLAS_ABIERTAS" and area != "BARRA":
+                continue
+
             normalized_target = normalize(nombre_real)
             col = None
             for h, idx in headers.items():
@@ -291,7 +359,7 @@ def guardar():
             if col:
                 updates.append({
                     "range": f"{colletter(col)}{row}",
-                    "values": [[safe_value(r[campo])]]
+                    "values": [[safe_value(r.get(campo, 0))]]
                 })
 
         # FECHA
@@ -302,7 +370,8 @@ def guardar():
                     "values": [[fecha_str]]
                 })
 
-    ws.batch_update(updates)
+    if updates:
+        ws.batch_update(updates)
     st.success("Inventario guardado ✔")
 
 # =========================================================
@@ -315,7 +384,7 @@ def resetear():
 
     col_prod = None
     for k, v in headers.items():
-        if normalize(k) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO"]:
+        if normalize(k) in ["PRODUCTO GENERICO", "PRODUCTO GENERICO", "PRODUCTO"]:
             col_prod = v
             break
 
@@ -335,7 +404,8 @@ def resetear():
                 updates.append({"range": f"{colletter(ci)}{row}", "values": [[""]]})
 
     updates.append({"range": "C3", "values": [[""]]})
-    ws.batch_update(updates)
+    if updates:
+        ws.batch_update(updates)
 
     st.session_state["preview_por_area"][area] = pd.DataFrame(
         columns=["PRODUCTO", "CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]
@@ -377,5 +447,3 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[st.session_state["comentario"]]])
     st.success("Comentario guardado ✔")
-
-
