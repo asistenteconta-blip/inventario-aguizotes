@@ -399,6 +399,7 @@ def resetear():
     rows = get_rows(ws, col_prod)
     updates = []
 
+    # Reset valores de inventario
     for row in rows.values():
         for campo in ["CANTIDAD CERRADO", "CANTIDAD ABIERTO (PESO)", "CANTIDAD BOTELLAS ABIERTAS"]:
             target = normalize(campo)
@@ -406,19 +407,26 @@ def resetear():
                 if normalize(h) == target:
                     updates.append({"range": f"{colletter(ci)}{row}", "values": [[0]]})
 
+        # Reset FECHA
         for h, ci in headers.items():
             if normalize(h) == "FECHA":
                 updates.append({"range": f"{colletter(ci)}{row}", "values": [[""]]})
 
+    # Reset comentario (celda C3)
     updates.append({"range": "C3", "values": [[""]]})
 
     ws.batch_update(updates)
 
+    # Reset vista previa
     st.session_state["preview_por_area"][area] = pd.DataFrame(
         columns=["PRODUCTO", "CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]
     )
 
+    # 🔥 RESET del comentario en sesión también
+    st.session_state["comentarios_por_area"][area] = ""
+
     st.success("Área reseteada ✔")
+
 
 # =========================================================
 # BOTONES
@@ -465,6 +473,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
