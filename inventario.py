@@ -301,8 +301,11 @@ if not prev.empty:
             + prev["COSTO X UNIDAD"].fillna(0) * prev["ABIERTO(PESO)"].fillna(0)
         ).round(2)
 
-        # Ocultar columnas sensibles
-        prev = prev.drop(columns=["PRECIO NETO", "COSTO X UNIDAD"], errors="ignore")
+        # 🔥 Ocultar columnas sensibles y columnas que no deben verse
+        prev = prev.drop(
+            columns=["PRECIO NETO", "COSTO X UNIDAD", "UNIDAD", "MEDIDA"],
+            errors="ignore"
+        )
 
     else:
         st.warning("⚠ No se encontraron columnas de precio para esta área.")
@@ -314,6 +317,7 @@ if not prev.empty:
 
 else:
     st.info("Sin registros aún.")
+
 
 
 
@@ -461,6 +465,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
