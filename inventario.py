@@ -204,13 +204,65 @@ tabla = {
 
 tabla["BOTELLAS_ABIERTAS"] = [0] * len(df_sel) if area == "BARRA" else [""] * len(df_sel)
 
+# =========================================================
+# TABLA EDITABLE (ACTUALIZADA PARA DECIMALES)
+# =========================================================
+
+tabla = {
+    "PRODUCTO": df_sel[col_producto].tolist(),
+    "UNIDAD": df_sel.get("UNIDAD RECETA", [""] * len(df_sel)).tolist(),
+    "MEDIDA": df_sel.get("CANTIDAD DE UNIDAD DE MEDIDA", [""] * len(df_sel)).tolist(),
+    "CERRADO": [0] * len(df_sel),
+    "ABIERTO(PESO)": [0] * len(df_sel),
+}
+
+tabla["BOTELLAS_ABIERTAS"] = [0] * len(df_sel) if area == "BARRA" else [""] * len(df_sel)
+
 df_tabla = pd.DataFrame(tabla)
 
+# -------------------------
+# LIMPIEZA Y NORMALIZACIÓN
+# -------------------------
+for c in ["CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]:
+    if c in df_tabla.columns:
+        df_tabla[c] = (
+            df_tabla[c]
+            .astype(str)
+            .str.replace(",", ".", regex=False)
+            .str.strip()
+        )
+
+        # Convertir a número, fallas → 0
+        df_tabla[c] = pd.to_numeric(df_tabla[c], errors="coerce").fillna(0)
+
+# Forzar tipos numéricos sin decimales obligatorios
+for c in ["CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]:
+    if c in df_tabla.columns:
+        df_tabla[c] = df_tabla[c].astype(float)
+
+# -------------------------
+# DATA EDITOR ACTUALIZADO
+# -------------------------
 df_edit = st.data_editor(
     df_tabla,
     disabled=["PRODUCTO", "UNIDAD", "MEDIDA"],
-    use_container_width=True
+    use_container_width=True,
+    column_config={
+        "CERRADO": st.column_config.NumberColumn(
+            "CERRADO",
+            format="%.10g"   # muestra 0, 1.25, 0.5 sin ceros forzados
+        ),
+        "ABIERTO(PESO)": st.column_config.NumberColumn(
+            "ABIERTO (PESO)",
+            format="%.10g"
+        ),
+        "BOTELLAS_ABIERTAS": st.column_config.NumberColumn(
+            "BOTELLAS ABIERTAS",
+            format="%.10g"   # permite decimales si los ingresan
+        ),
+    }
 )
+
 
 # =========================================================
 # PREVIEW POR ÁREA
@@ -384,6 +436,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
