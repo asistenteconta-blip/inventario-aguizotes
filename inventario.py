@@ -219,12 +219,13 @@ costo_unidad = pd.to_numeric(
 
 # Construir tabla visible
 tabla_visible = {
-    "PRODUCTO": df_sel["PRODUCTO GENÉRICO"].tolist(),
-    "UNIDAD": df_sel["UNIDAD RECETA"].tolist(),
-    "MEDIDA": df_sel["CANTIDAD DE UNIDAD DE MEDIDA"].tolist(),
+    "PRODUCTO": df_sel[col_producto].tolist(),
+    "UNIDAD": df_sel.get("UNIDAD RECETA", [""] * len(df_sel)),
+    "MEDIDA": df_sel.get("CANTIDAD DE UNIDAD DE MEDIDA", [""] * len(df_sel)),
     "CERRADO": [0.0] * len(df_sel),
     "ABIERTO(PESO)": [0.0] * len(df_sel),
 }
+
 
 # SOLO mostrar BOTELLAS ABIERAS en área BARRA
 if area == "BARRA":
@@ -488,6 +489,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
