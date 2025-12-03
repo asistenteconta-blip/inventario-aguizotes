@@ -277,7 +277,39 @@ prev = st.session_state["preview_por_area"][area].copy()
 if not prev.empty:
 
     # ======= Agregar precios desde Google Sheets =======
-    df_prec = df_area.copy()
+    # ========= AGREGAR PRECIOS Y CALCULAR VALOR =========
+
+# Copiar y normalizar df_area para prevenir errores
+df_prec = df_area.copy()
+df_prec.columns = [normalize(c) for c in df_prec.columns]
+
+# El nombre del producto según la norma
+col_prod_norm = normalize(col_producto)
+
+# Verificar existencia de columnas (seguras)
+t_precio = "PRECIO NETO" in df_prec.columns
+t_costo = "COSTO X UNIDAD" in df_prec.columns
+t_prod = col_prod_norm in df_prec.columns
+
+if t_precio and t_costo and t_prod:
+
+    # Filtrar columnas necesarias
+    df_prec_f = df_prec[[col_prod_norm, "PRECIO NETO", "COSTO X UNIDAD"]].rename(
+        columns={col_prod_norm: "PRODUCTO"}
+    )
+
+    # MERGE SEGURO
+    prev = prev.merge(df_prec_f, on="PRODUCTO", how="left")
+
+    # Calcular valor inventario
+    prev["VALOR INVENTARIO (PREVIO)"] = (
+        prev["PRECIO NETO"].fillna(0) * prev["CERRADO"].fillna(0) +
+        prev["COSTO X UNIDAD"].fillna(0) * prev["ABIERTO(PESO)"].fillna(0)
+    ).round(2)
+
+else:
+    st.warning("⚠ No se encontraron columnas de precio para esta área.")
+
 
     # Normalizar columnas por seguridad
     df_prec.columns = [normalize(c) for c in df_prec.columns]
@@ -450,4 +482,5 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
