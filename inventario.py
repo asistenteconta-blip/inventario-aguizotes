@@ -306,6 +306,9 @@ if t_precio and t_costo and t_prod:
         prev["PRECIO NETO"].fillna(0) * prev["CERRADO"].fillna(0) +
         prev["COSTO X UNIDAD"].fillna(0) * prev["ABIERTO(PESO)"].fillna(0)
     ).round(2)
+    # Ocultar columnas de precios en la vista previa
+    prev = prev.drop(columns=["PRECIO NETO", "COSTO X UNIDAD"], errors="ignore")
+
 
 else:
     st.warning("⚠ No se encontraron columnas de precio para esta área.")
@@ -482,5 +485,6 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
