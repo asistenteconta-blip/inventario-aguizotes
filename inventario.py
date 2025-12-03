@@ -240,11 +240,23 @@ df_edit = st.data_editor(
     use_container_width=True,
     hide_index=True,
     column_config={
-        "CERRADO": st.column_config.NumberColumn("CERRADO", format="%.4f"),
-        "ABIERTO(PESO)": st.column_config.NumberColumn("ABIERTO (PESO)", format="%.4f"),
-        "BOTELLAS_ABIERTAS": st.column_config.NumberColumn("BOTELLAS ABIERTAS", format="%.0f") if area == "BARRA" else None,
+        "CERRADO": st.column_config.NumberColumn(
+            "CERRADO",
+            format="%.4g",   # 🔥 muestra 0 en vez de 0.0, pero acepta decimales
+            step=0.01
+        ),
+        "ABIERTO(PESO)": st.column_config.NumberColumn(
+            "ABIERTO (PESO)",
+            format="%.4g",
+            step=0.01
+        ),
+        "BOTELLAS_ABIERTAS": st.column_config.NumberColumn(
+            "BOTELLAS ABIERTAS",
+            format="%.0f",   # sin decimales
+            step=1
+        ) if area == "BARRA" else None,
     }
-)
+
 
 # =========================================================
 # AGREGAR CAMPOS INVISIBLES PARA CALCULOS
@@ -489,6 +501,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
