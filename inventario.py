@@ -203,49 +203,64 @@ if df_sel.empty:
     st.stop()
 
 # =========================================================
-# TABLA EDITABLE
+# TABLA EDITABLE (Entrada)
 # =========================================================
 
-tabla = {
-    "PRODUCTO": df_sel[col_producto].tolist(),
-    "UNIDAD": df_sel.get("UNIDAD RECETA", [""] * len(df_sel)).tolist(),
-    "MEDIDA": df_sel.get("CANTIDAD DE UNIDAD DE MEDIDA", [""] * len(df_sel)).tolist(),
-    "CERRADO": [0] * len(df_sel),
-    "ABIERTO(PESO)": [0] * len(df_sel),
+# Datos invisibles para cálculos
+precio_neto = pd.to_numeric(
+    df_sel["PRECIO NETO"].astype(str).str.replace(",", ".", regex=False).str.strip(),
+    errors="coerce"
+).fillna(0)
+
+costo_unidad = pd.to_numeric(
+    df_sel["COSTO X UNIDAD"].astype(str).str.replace(",", ".", regex=False).str.strip(),
+    errors="coerce"
+).fillna(0)
+
+# Construir tabla visible
+tabla_visible = {
+    "PRODUCTO": df_sel["PRODUCTO GENÉRICO"].tolist(),
+    "UNIDAD": df_sel["UNIDAD RECETA"].tolist(),
+    "MEDIDA": df_sel["CANTIDAD DE UNIDAD DE MEDIDA"].tolist(),
+    "CERRADO": [0.0] * len(df_sel),
+    "ABIERTO(PESO)": [0.0] * len(df_sel),
 }
 
-tabla["BOTELLAS_ABIERTAS"] = [0] * len(df_sel) if area == "BARRA" else [""] * len(df_sel)
+# SOLO mostrar BOTELLAS ABIERAS en área BARRA
+if area == "BARRA":
+    tabla_visible["BOTELLAS_ABIERTAS"] = [0.0] * len(df_sel)
 
-# =========================================================
-# TABLA EDITABLE (DECIMALES)
-# =========================================================
+df_visible = pd.DataFrame(tabla_visible)
 
-df_tabla = pd.DataFrame(tabla)
-
-for c in ["CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]:
-    if c in df_tabla.columns:
-        df_tabla[c] = (
-            df_tabla[c]
-            .astype(str)
-            .str.replace(",", ".", regex=False)
-            .str.strip()
-        )
-        df_tabla[c] = pd.to_numeric(df_tabla[c], errors="coerce").fillna(0)
-
-for c in ["CERRADO", "ABIERTO(PESO)", "BOTELLAS_ABIERTAS"]:
-    if c in df_tabla.columns:
-        df_tabla[c] = df_tabla[c].astype(float)
-
+# Editor de entrada
 df_edit = st.data_editor(
-    df_tabla,
+    df_visible,
     disabled=["PRODUCTO", "UNIDAD", "MEDIDA"],
     use_container_width=True,
+    hide_index=True,
     column_config={
-        "CERRADO": st.column_config.NumberColumn("CERRADO", format="%.10g"),
-        "ABIERTO(PESO)": st.column_config.NumberColumn("ABIERTO (PESO)", format="%.10g"),
-        "BOTELLAS_ABIERTAS": st.column_config.NumberColumn("BOTELLAS ABIERTAS", format="%.10g"),
+        "CERRADO": st.column_config.NumberColumn("CERRADO", format="%.4f"),
+        "ABIERTO(PESO)": st.column_config.NumberColumn("ABIERTO (PESO)", format="%.4f"),
+        "BOTELLAS_ABIERTAS": st.column_config.NumberColumn("BOTELLAS ABIERTAS", format="%.0f") if area == "BARRA" else None,
     }
 )
+
+# =========================================================
+# AGREGAR CAMPOS INVISIBLES PARA CALCULOS
+# =========================================================
+
+df_edit["_PRECIO_NETO"] = precio_neto.values
+df_edit["_COSTO_X_UNIDAD"] = costo_unidad.values
+
+# =========================================================
+# CALCULO VALOR DE INVENTARIO
+# =========================================================
+
+df_edit["VALOR INVENTARIO"] = (
+    df_edit["CERRADO"].astype(float) * df_edit["_PRECIO_NETO"]
+    + df_edit["ABIERTO(PESO)"].astype(float) * df_edit["_COSTO_X_UNIDAD"]
+)
+
 
 # =========================================================
 # PREVIEW POR ÁREA
@@ -473,6 +488,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
