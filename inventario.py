@@ -142,7 +142,7 @@ def get_rows(ws, col):
 # UI
 # =========================================================
 
-st.title("📦 Inventario Diario")
+st.title("📦 Inventario Diario — Aguizotes")
 
 st.warning("""
 - ⚠ Verifica antes de guardar.
@@ -384,5 +384,6 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
