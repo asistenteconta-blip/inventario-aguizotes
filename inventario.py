@@ -276,70 +276,53 @@ prev = st.session_state["preview_por_area"][area].copy()
 
 if not prev.empty:
 
+st.subheader("Vista previa")
+prev = st.session_state["preview_por_area"][area].copy()
+
+if not prev.empty:
+
     # ======= Agregar precios desde Google Sheets =======
-    # ========= AGREGAR PRECIOS Y CALCULAR VALOR =========
-
-# Copiar y normalizar df_area para prevenir errores
-df_prec = df_area.copy()
-df_prec.columns = [normalize(c) for c in df_prec.columns]
-
-# El nombre del producto según la norma
-col_prod_norm = normalize(col_producto)
-
-# Verificar existencia de columnas (seguras)
-t_precio = "PRECIO NETO" in df_prec.columns
-t_costo = "COSTO X UNIDAD" in df_prec.columns
-t_prod = col_prod_norm in df_prec.columns
-
-if t_precio and t_costo and t_prod:
-
-    # Filtrar columnas necesarias
-    df_prec_f = df_prec[[col_prod_norm, "PRECIO NETO", "COSTO X UNIDAD"]].rename(
-        columns={col_prod_norm: "PRODUCTO"}
-    )
-
-    # MERGE SEGURO
-    prev = prev.merge(df_prec_f, on="PRODUCTO", how="left")
-
-    # Calcular valor inventario
-    prev["VALOR INVENTARIO (PREVIO)"] = (
-        prev["PRECIO NETO"].fillna(0) * prev["CERRADO"].fillna(0) +
-        prev["COSTO X UNIDAD"].fillna(0) * prev["ABIERTO(PESO)"].fillna(0)
-    ).round(2)
-    # Ocultar columnas de precios en la vista previa
-    prev = prev.drop(columns=["PRECIO NETO", "COSTO X UNIDAD"], errors="ignore")
-
-
-else:
-    st.warning("⚠ No se encontraron columnas de precio para esta área.")
-
+    df_prec = df_area.copy()
 
     # Normalizar columnas por seguridad
     df_prec.columns = [normalize(c) for c in df_prec.columns]
 
-    # Necesitamos: PRODUCTO, PRECIO NETO, COSTO X UNIDAD
-    if "PRECIO NETO" in df_prec.columns and "COSTO X UNIDAD" in df_prec.columns:
+    col_prod_norm = normalize(col_producto)
 
-        df_prec = df_prec[[normalize(col_producto), "PRECIO NETO", "COSTO X UNIDAD"]]
-        df_prec = df_prec.rename(columns={normalize(col_producto): "PRODUCTO"})
+    tiene_precio = "PRECIO NETO" in df_prec.columns
+    tiene_costo = "COSTO X UNIDAD" in df_prec.columns
+    tiene_producto = col_prod_norm in df_prec.columns
+
+    if tiene_precio and tiene_costo and tiene_producto:
+
+        df_prec_f = df_prec[[col_prod_norm, "PRECIO NETO", "COSTO X UNIDAD"]].rename(
+            columns={col_prod_norm: "PRODUCTO"}
+        )
 
         # Merge con la preview
-        prev = prev.merge(df_prec, on="PRODUCTO", how="left")
+        prev = prev.merge(df_prec_f, on="PRODUCTO", how="left")
 
-        # ======= Calcular valor inventario (solo vista previa) =======
+        # Calcular valor inventario
         prev["VALOR INVENTARIO (PREVIO)"] = (
             prev["PRECIO NETO"].fillna(0) * prev["CERRADO"].fillna(0)
             + prev["COSTO X UNIDAD"].fillna(0) * prev["ABIERTO(PESO)"].fillna(0)
         ).round(2)
 
-    # Mostrar vista previa con valor inventario incluido
+        # 🔥 Ocultar columnas de precio en la vista previa 🔥
+        prev = prev.drop(columns=["PRECIO NETO", "COSTO X UNIDAD"], errors="ignore")
+
+    else:
+        st.warning("⚠ No se encontraron columnas de precio para esta área.")
+
+    # Mostrar vista previa final
     st.dataframe(prev, use_container_width=True)
 
-    # Guardar en sesión para el botón GUARDAR
+    # Guardar vista previa procesada
     st.session_state["preview_por_area"][area] = prev
 
 else:
     st.info("Sin registros aún.")
+
 
 # =========================================================
 # GUARDAR
@@ -485,6 +468,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
