@@ -228,10 +228,10 @@ entrada = df_edit[mask].copy()
 if not entrada.empty:
     prev = st.session_state["preview_por_area"][area]
    # Normalizar columnas para asegurar "PRODUCTO" exista
-prev = normalizar_columnas(prev)
+    prev = normalizar_columnas(prev)
 
 # Quitar productos repetidos entre prev y entrada
-prev = prev[~prev["PRODUCTO"].isin(entrada["PRODUCTO"])]
+    prev = prev[~prev["PRODUCTO"].isin(entrada["PRODUCTO"])]
 
     prev = pd.concat([prev, entrada], ignore_index=True)
     st.session_state["preview_por_area"][area] = prev
@@ -377,4 +377,5 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[st.session_state["comentario"]]])
     st.success("Comentario guardado ✔")
+
 
