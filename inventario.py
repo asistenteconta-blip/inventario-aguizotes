@@ -172,11 +172,20 @@ df_area = load_area_products(area)
 # FILTROS
 
 if "CATEGORIA" in df_area.columns:
-    categorias = ["TODOS"] + sorted(df_area["CATEGORIA"].dropna().unique())
-    categoria = st.selectbox("Categoría:", categorias)
-    df_fil = df_area if categoria == "TODOS" else df_area[df_area["CATEGORIA"] == categoria]
+    categorias = sorted(df_area["CATEGORIA"].dropna().unique())
+    categorias_sel = st.multiselect(
+        "Categoría:",
+        ["TODOS"] + categorias,
+        default=["TODOS"]
+    )
+
+    if "TODOS" in categorias_sel:
+        df_fil = df_area
+    else:
+        df_fil = df_area[df_area["CATEGORIA"].isin(categorias_sel)]
 else:
     df_fil = df_area
+
 
 if "SUB FAMILIA" in df_fil.columns:
     subfams = ["TODOS"] + sorted(df_fil["SUB FAMILIA"].dropna().unique())
@@ -503,6 +512,7 @@ if st.button("💬 Guardar comentario"):
     ws = get_sheet(area)
     ws.update("C3", [[comentario_actual]])
     st.success(f"Comentario de {area} guardado ✔")
+
 
 
 
